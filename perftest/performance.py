@@ -48,11 +48,11 @@ def main():
         extlibs.append('pydantic')
     except ImportError:
         pass
-    try:
-        import apischema
-        extlibs.append('apischema')
-    except ImportError:
-        pass
+    # try:
+    #     import apischema
+    #     extlibs.append('apischema')
+    # except ImportError:
+    #     pass
 
     outdir = Path('perftest.output')
     if not outdir.exists():
@@ -62,18 +62,18 @@ def main():
     for i in ['common'] + tests:
         copy(f'perftest/{i}.py', tempdir)
 
-    tags = check_output(['git', 'tag', '--list'], encoding='ascii').strip().split('\n')
-    # Skip minor versions
-    tags = [i for i in tags if '-' not in i and ',' not in i and len(i.split('.')) <= 2]
-    # Sort by version
-    tags.sort(key=lambda i: tuple(int(j) for j in i.split('.')))
+    # tags = check_output(['git', 'tag', '--list'], encoding='ascii').strip().split('\n')
+    # # Skip minor versions
+    # tags = [i for i in tags if '-' not in i and ',' not in i and len(i.split('.')) <= 2]
+    # # Sort by version
+    # tags.sort(key=lambda i: tuple(int(j) for j in i.split('.')))
 
     # Add current branch and master
-    current = check_output(['git', 'branch', '--show-current'], encoding='ascii').strip()
-    if current != 'master':
-        tags += ['master', current]
-    else:
-        tags.append('master')
+    # current = check_output(['git', 'branch', '--show-current'], encoding='ascii').strip()
+    # if current != 'master':
+    #     tags += ['master', current]
+    # else:
+    #     tags.append('master')
 
     plotcmd = []
     maxtime = 0
@@ -91,14 +91,14 @@ def main():
                 maxtime = maxtime if maxtime > maxduration else maxduration
                 f.write(f'{counter} "{library}" {library_time} {maxduration}\n')
                 counter += 1
-            for branch in tags[-6:]:
-                print(f'\tRunning test with {branch}', end='\t', flush=True)
-                check_output(['git', 'checkout', branch], stderr=DEVNULL)
-                typedload_time, maxduration = parse_performance(['python3', f'{tempdir}/{t}.py', '--typedload'])
-                print(typedload_time, maxduration)
-                f.write(f'{counter} "{branch}" {typedload_time} {maxduration}\n')
-                maxtime = maxtime if maxtime > maxduration else maxduration
-                counter += 1
+            # for branch in tags[-6:]:
+            #     print(f'\tRunning test with {branch}', end='\t', flush=True)
+                # check_output(['git', 'checkout', branch], stderr=DEVNULL)
+            typedload_time, maxduration = parse_performance(['python3', f'{tempdir}/{t}.py', '--typedload'])
+            print(typedload_time, maxduration)
+            f.write(f'{counter} "master" {typedload_time} {maxduration}\n')
+            maxtime = maxtime if maxtime > maxduration else maxduration
+            counter += 1
 
         plotcmd.append(f'"{t}.dat" using 1:3:4 with filledcurves title "", "" using 1:3:xtic(2) with linespoint title "{t}"')
     rmtree(tempdir)

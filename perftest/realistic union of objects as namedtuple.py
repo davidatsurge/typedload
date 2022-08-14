@@ -16,11 +16,13 @@
 #
 # author Salvo "LtWorf" Tomaselli <tiposchi@tiscali.it>
 
+import json
 from typing import Tuple, Union, Literal, NamedTuple
 import sys
 from dataclasses import dataclass
 
 from common import timeit
+from perftest.common import write_json_to_tmp_file
 
 
 class EventMessage(NamedTuple):
@@ -99,56 +101,61 @@ events = [
 
 data = {'data': events}
 
+with write_json_to_tmp_file(data) as data_file_path:
+    if sys.argv[1] == '--typedload':
+        from typedload import load
+        def func():
+            with open(data_file_path) as data_file:
+                data = json.load(data_file)
+                load(data, EventList)
+        print(timeit(func))
+    elif sys.argv[1] == '--pydantic':
+        import pydantic
+        class EventMessagePy(pydantic.BaseModel):
+            timestamp: float
+            type: Literal['message']
+            text: str
+            sender: str
+            receiver: str
+        class EventFilePy(pydantic.BaseModel):
+            timestamp: float
+            type: Literal['file']
+            filename: str
+            sender: str
+            receiver: str
+            url: str
+        class EventPingPy(pydantic.BaseModel):
+            timestamp: float
+            type: Literal['ping']
+        class EventEnterPy(pydantic.BaseModel):
+            type: Literal['enter']
+            timestamp: float
+            sender: str
+            room: int
+        class EventExitPy(pydantic.BaseModel):
+            type: Literal['exit']
+            timestamp: float
+            sender: str
+            room: int
+        EventPy = Union[EventExitPy, EventEnterPy,EventMessagePy, EventPingPy, EventFilePy]
+        class EventListPy(pydantic.BaseModel):
+            data: Tuple[EventPy, ...]
 
-if sys.argv[1] == '--typedload':
-    from typedload import load
-    print(timeit(lambda: load(data, EventList)))
-elif sys.argv[1] == '--pydantic':
-    import pydantic
-    class EventMessagePy(pydantic.BaseModel):
-        timestamp: float
-        type: Literal['message']
-        text: str
-        sender: str
-        receiver: str
-    class EventFilePy(pydantic.BaseModel):
-        timestamp: float
-        type: Literal['file']
-        filename: str
-        sender: str
-        receiver: str
-        url: str
-    class EventPingPy(pydantic.BaseModel):
-        timestamp: float
-        type: Literal['ping']
-    class EventEnterPy(pydantic.BaseModel):
-        type: Literal['enter']
-        timestamp: float
-        sender: str
-        room: int
-    class EventExitPy(pydantic.BaseModel):
-        type: Literal['exit']
-        timestamp: float
-        sender: str
-        room: int
-    EventPy = Union[EventExitPy, EventEnterPy,EventMessagePy, EventPingPy, EventFilePy]
-    class EventListPy(pydantic.BaseModel):
-        data: Tuple[EventPy, ...]
-    print(timeit(lambda: EventListPy(**data)))
-elif sys.argv[1] == '--apischema':
-    import apischema
-    print(timeit(lambda: apischema.deserialize(EventList, data)))
-if sys.argv[1] == '--apischema-discriminator':
-    import apischema
-    try:
-        from typing import Annotated
-    except ImportError:
-        pass
-    else:
-        discriminator = apischema.discriminator(
-            "type", {"message": EventMessage, "ping": EventPing, "file": EventFile}
-        )
-        class DiscriminatedEventList(NamedTuple):
-            data: Tuple[Annotated[Event, discriminator], ...]
-        print(timeit(lambda: apischema.deserialize(DiscriminatedEventList, data)))
+        print(timeit(lambda: pydantic.parse_file_as(EventListPy, data_file_path)))
+    # elif sys.argv[1] == '--apischema':
+    #     import apischema
+    #     print(timeit(lambda: apischema.deserialize(EventList, data)))
+    # if sys.argv[1] == '--apischema-discriminator':
+    #     import apischema
+    #     try:
+    #         from typing import Annotated
+    #     except ImportError:
+    #         pass
+    #     else:
+    #         discriminator = apischema.discriminator(
+    #             "type", {"message": EventMessage, "ping": EventPing, "file": EventFile}
+    #         )
+    #         class DiscriminatedEventList(NamedTuple):
+    #             data: Tuple[Annotated[Event, discriminator], ...]
+    #         print(timeit(lambda: apischema.deserialize(DiscriminatedEventList, data)))
 

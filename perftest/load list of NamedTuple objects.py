@@ -18,9 +18,10 @@
 
 from typing import List, NamedTuple
 import sys
+import json
 
 from common import timeit
-
+from perftest.common import write_json_to_tmp_file
 
 
 class Child(NamedTuple):
@@ -33,18 +34,21 @@ class Data(NamedTuple):
 
 data = {'data': [{'value': i} for i in range(300000)]}
 
-
-if sys.argv[1] == '--typedload':
-    from typedload import load
-    print(timeit(lambda: load(data, Data)))
-elif sys.argv[1] == '--pydantic':
-    import pydantic
-    class ChildPy(pydantic.BaseModel):
-        value: int
-    class DataPy(pydantic.BaseModel):
-        data: List[ChildPy]
-    print(timeit(lambda: DataPy(**data)))
-elif sys.argv[1] == '--apischema':
-    import apischema
-    print(timeit(lambda: apischema.deserialize(Data, data)))
-
+with write_json_to_tmp_file(data) as data_file_path:
+    if sys.argv[1] == '--typedload':
+        from typedload import load
+        def func():
+            with open(data_file_path) as data_file:
+                load(json.load(data_file), Data)
+        print(timeit(func))
+    elif sys.argv[1] == '--pydantic':
+        import pydantic
+        class ChildPy(pydantic.BaseModel):
+            value: int
+        class DataPy(pydantic.BaseModel):
+            data: List[ChildPy]
+        print(timeit(lambda: pydantic.parse_file_as(DataPy, path=data_file_path)))
+    # elif sys.argv[1] == '--apischema':
+    #     import apischema
+    #     print(timeit(lambda: apischema.deserialize(Data, data)))
+    #     elif sys.argv[1] == '--apischema':

@@ -16,10 +16,12 @@
 #
 # author Salvo "LtWorf" Tomaselli <tiposchi@tiscali.it>
 
+import json
 from typing import List, NamedTuple, Union
 import sys
 
 from common import timeit
+from perftest.common import write_json_to_tmp_file
 
 
 class Data(NamedTuple):
@@ -29,17 +31,22 @@ class Data(NamedTuple):
 data = {'data': [i if i % 2 else float(i) for i in range(3000000)]}
 
 
-if sys.argv[1] == '--typedload':
-    from typedload import load
-    print(timeit(lambda: load(data, Data)))
-elif sys.argv[1] == '--pydantic':
-    import pydantic
-    class DataPy(pydantic.BaseModel):
-        data: List[Union[int, float]]
-    print(timeit(lambda: DataPy(**data)))
-elif sys.argv[1] == '--apischema':
-    import apischema
-    # apischema will return a pointer to the same list, which is a bug
-    # that can lead to data corruption, but makes it very fast
-    # so level the field by copying the list
-    print(timeit(lambda: list(apischema.deserialize(Data, data))))
+with write_json_to_tmp_file(data) as data_file_path:
+    if sys.argv[1] == '--typedload':
+        from typedload import load
+        def func():
+            with open(data_file_path) as data_file:
+                load(json.load(data_file), Data)
+        print(timeit(func))
+
+    elif sys.argv[1] == '--pydantic':
+        import pydantic
+        class DataPy(pydantic.BaseModel):
+            data: List[Union[int, float]]
+        print(timeit(lambda: pydantic.parse_file_as(DataPy, data_file_path)))
+    elif sys.argv[1] == '--apischema':
+        import apischema
+        # apischema will return a pointer to the same list, which is a bug
+        # that can lead to data corruption, but makes it very fast
+        # so level the field by copying the list
+        print(timeit(lambda: list(apischema.deserialize(Data, data))))
